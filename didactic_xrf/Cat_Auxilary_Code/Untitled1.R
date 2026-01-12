@@ -26,7 +26,7 @@
 
   a_big_boxplot <- xrf_long %>%  
     ggplot()+#just to get things started
-    geom_boxplot(aes(x=LOCATION, y=ppm, color=substrate))+#make boxplot shapes, separate in space using taxon, and color using locality
+    geom_boxplot(aes(x=LOCATION, y=ppm, color=substrate))+#make box plot shapes, separate in space using taxon, and color using locality
     facet_wrap(element~., scales="free")+#separate element plots out into separate panels
     theme(axis.text.x=element_text(angle=45, hjust = 1))  
   

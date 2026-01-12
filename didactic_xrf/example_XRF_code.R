@@ -13,9 +13,6 @@ pkgs <- c("readr", "ggplot2", "dplyr", "readxl",
 vapply(pkgs, library, logical(1), character.only = TRUE, logical.return = TRUE)
 
 #----wd + input swtiches--------------------------------------------------------
-#change the working directory. update the string "/Users.." to contain the 
-#path to the directory containing this script and your data file
-#setwd("/Users/willmatthaeus/Dropbox/didactics/didactic_xrf/")
 '%!in%' <- function(x,y)!('%in%'(x,y))
 #only change this here, then the rest of the code should work for *your* data
 # input_switch <-"Ant"
@@ -93,12 +90,12 @@ if(input_switch=="Ant"){
   
 }
 
-##----Cat Penn------------------------------------------------------------------          
+##----Cat Penn------------------------------------------------------------------
 if(input_switch=="Cat_Penn"){
   #read in the data
   xrf <- read_excel(path = "C:/Users/catar/OneDrive/Ambiente de Trabalho/Pennsylvanina/Pennsylvanian XRF data/Carboniferous XRF.xlsx",sheet = 2)
- 
-  #find the group ids from the sample name and make a new column
+
+  #creates a separate table dataframe w the standards 
   sdarm2 <- xrf %>% filter(SAMPLE%in%c("sdarm2","sdarm"))
 
 ###-----QC------------------------
@@ -183,34 +180,41 @@ if(input_switch=="Cat_Penn"){
         measured_min <= acceptable_max
     )
   
-  #if QC_pass=NA then elemeent fails
-
-##-----data finagleing-----------------------------
-
-  #removes the standards from the xrf dataframe
+  #if QC_pass=NA then element fails
+ 
+ #qc_results$QC_pass == NA then select(-xyz)?
+ 
+  #removes columns that failed
+    #hard coded for now
+  xrf <- xrf %>% select(-Mg) %>%
+             select(-`Mg Error`)
+  
+##-----data finagling-----------------------------------------------------------
+    
+  #removes the standards from the xrf data frame
   xrf<- xrf %>% filter(SAMPLE%!in%c("sdarm2","sdarm"))
 
   #remove non vegetative taxa from df
   xrf <- filter(xrf, taxon!=c("Lepidostrobophyllum"))
   xrf <- filter(xrf, taxon!=c("?"))
-          
+  
   #prints every unique name in SAMPLE
   xrf %>% select(SAMPLE)%>%unique%>%print(n=126)
-          
-   #creates two dataframes
+   
+  #creates two data frames
     #one with the names that are already formatted correctly
   goodnames_xrf <- xrf[grep(x = xrf$SAMPLE,pattern = "_"),]
     #and one with Bad Formatting
   badnames_xrf <- xrf[-grep(x = xrf$SAMPLE,pattern = "_"),]
-
-          
-  goodnames_xrf <- goodnames_xrf %>% 
+  
+  
+  goodnames_xrf <- goodnames_xrf %>%
     #creates new column "name_split" and splits SAMPLE in 3 strings divided by "-"
-      #name_split is a 3 column matrix inside my df      
+      #name_split is a 3 column matrix inside my df
     mutate(name_split = str_split_fixed(SAMPLE,'-',n=3)) %>%
-      #create a new column "name" from the third element of name split
+    #create a new column "name" from the third element of name split
     mutate(name = name_split[,3]) %>%
-      #changes "name_split" to be divided by "_"
+    #changes "name_split" to be divided by "_"
     mutate(name_split = str_split_fixed(name,'_',n=3))%>%
     #create column "core" from the first element of "name_split"
     #              "side"          second
@@ -218,7 +222,7 @@ if(input_switch=="Cat_Penn"){
     mutate(core= name_split[,1], side = name_split[,2], spot = name_split[,3])%>%
     #removes name_split and name
     select(-name_split, -name)
-
+  
   #in the column "side" - change all the entries matching "front" to be upper case
   goodnames_xrf$side[which(goodnames_xrf$side == 'front')]<-"FRONT"
   #fill the column substrate w NAs
@@ -228,24 +232,25 @@ if(input_switch=="Cat_Penn"){
   #fill the column substrate w Fossil if the spot column has an F or an f
   goodnames_xrf$substrate[grep(x = goodnames_xrf$spot, pattern = '[fF]')] <- 'Fossil'
   
-#check for all the different spellings in the LOCATION column
-  unique(goodnames_xrf$LOCATION)
-  # [1] "womac"              "murphysboro"        "new haven"          "seline,springfield"
-  # [5] "chapel"             "Murphysboro"        "Chapel"
-          
+  #check for all the different spellings in the LOCATION column
+    unique(goodnames_xrf$LOCATION)
+    # [1] "womac"              "murphysboro"        "new haven"          "seline,springfield"
+    # [5] "chapel"             "Murphysboro"        "Chapel"   
+  
   #find replace names in the LOCATION column´
     #== means that they're exactly the same
   goodnames_xrf<-goodnames_xrf%>%
   mutate(
-    location = case_when(
-    LOCATION == "seline,springfield" ~ "Seline",
+    LOCATION = case_when(
+    LOCATION == "seline,springfield" ~ "Springfield",
     LOCATION == "womac"  ~ "Womac",
     LOCATION == "murphysboro"  ~ "Murphysboro",
-    LOCATION == "new haven"  ~ "New haven",
+    LOCATION == "new haven"  ~ "New Haven",
     LOCATION == "chapel"  ~ "Chapel",
     .default = as.character(LOCATION)
     )
   )
+ 
             
   #
   # unique(goodnames_xrf$core)
@@ -271,7 +276,7 @@ if(input_switch=="Cat_Penn"){
   # [1] "paum mine" "womac"     "Paum mine"
   badnames_xrf<-badnames_xrf%>%
     mutate(
-      location = case_when(
+      LOCATION = case_when(
         LOCATION == "paum mine" ~ "Paum mine",
         LOCATION == "womac"  ~ "Womac",
         .default = as.character(LOCATION)
@@ -283,7 +288,7 @@ if(input_switch=="Cat_Penn"){
   # unique(badnames_xrf$core)
   # unique(badnames_xrf$location)
   
-  #marge
+  #merge
   xrf<-rbind(goodnames_xrf, badnames_xrf)
   
   # colnames(xrf)
@@ -302,15 +307,15 @@ if(input_switch=="Cat_Penn"){
   # [85] "side"       "spot"       "substrate"  "location" 
   
   #separate out the data columns and the error columns
-  element.colnums<-seq(17,85,2)
+  element.colnums<-seq(17,83,2)
   #this next line turns the column into numeric data
   #if any values can’t be converted, they become NA
   xrf[element.colnums] <- sapply(xrf[element.colnums],as.numeric)
   elements<-xrf[element.colnums]
   element_names <- colnames(elements)
-
-          
-xrf <- xrf %>%
+  
+  
+  xrf <- xrf %>%
     mutate(LOCATION =
              factor(LOCATION, levels = 
                       c("Murphysboro",
@@ -320,8 +325,6 @@ xrf <- xrf %>%
                         "Womac",
                         "New Haven"
                         )))
-
-          
 }
 
 ##----Cat Modern----------------------------------------------------------------
@@ -707,6 +710,9 @@ if(input_switch=="Ant"){
 
 ##----Cat Penn----
 if(input_switch=="Cat_Penn"){
+  
+  #if doing mlpb pre v post run Untitled 1
+  
   #adjust the 'shape' of the data from a matrix of elements to a table where 
   #each row is a single element concentration with a other categorical variables
   #like taxon and locality
@@ -715,22 +721,25 @@ if(input_switch=="Cat_Penn"){
   xrf_long <- xrf%>%select(all_of(c(categories,element_names)))%>%
     pivot_longer(cols = all_of(element_names),names_to = c("element"))%>%
     rename(ppm=value) %>% filter(!is.na(ppm))
+
   
   #if you want to filter rows, keep certain ones or drop others
   #xrf_long <- filter(xrf_long, element==c("As","Pb","Cu"))
   #                    taxon!=c("GINKGOITES MINUTA", "GINKGOITES")) 
   
   a_big_boxplot <- xrf_long %>%  
-    ggplot()+ #just to get things started
-    geom_boxplot(aes(x=LOCATION, y=ppm, color=substrate))+ #make boxplot shapes, separate in space using taxon, and color using locality
-    facet_wrap(element~., scales="free")+ #separate element plots out into separate panels
+    ggplot() + #just to get things started
+    #make box plot shapes, separate in space using time, and color using substrate
+    geom_boxplot(aes(x=LOCATION, y=ppm, color=substrate)) + 
+    #separate element plots out into separate panels
+    facet_wrap(element~., scales="free") + 
     theme(axis.text.x=element_text(angle=45, hjust = 1))
   
   #some plot saving code
   #useful for making nice plots with high res at a particular size  
   #i just played with the size til it looked good
   #it saves into whatever directory you set at the the top
-  plotName<-"Cat_element_boxplots.png"
+  plotName <- "Cat_element_boxplots.png"
   ggsave(plotName, plot = a_big_boxplot, device = "png", path = ".",
          scale = 1, height = 16, width = 25, units = c("in"),
          dpi = 300, limitsize = TRUE)
@@ -738,7 +747,7 @@ if(input_switch=="Cat_Penn"){
   #simplified a bit, focused on locality
   locality_boxplot <- xrf_long %>%
     ggplot()+#just to get things started
-    geom_boxplot(aes(x=locality, y=ppm, color=LOCATION))+#make boxplot shapes, separate in space using taxon, and color using locality
+    geom_boxplot(aes(x=location, y=ppm, color=LOCATION))+#make boxplot shapes, separate in space using taxon, and color using locality
     facet_wrap(element~., scales="free")+#separate element plots out into separate panels
     theme(axis.text.x=element_text(angle=45, hjust = 1))
   
@@ -748,7 +757,7 @@ if(input_switch=="Cat_Penn"){
   #it saves into whatever directory you set at the the top
   plotName<-"Cat_fire_elements_locality_boxplots.png"
   ggsave(plotName, plot = locality_boxplot, device = "png", path = ".",
-         scale = 1, height = 16, width = 14, units = c("in"),
+         scale = 1, height = 15, width = 14, units = c("in"),
          dpi = 300, limitsize = TRUE)
   
   
@@ -816,7 +825,7 @@ if(input_switch=="Cat_Penn"){
            scale = 1, height = 16, width = 25, units = c("in"),
            dpi = 300, limitsize = TRUE)
     
-###----group------------------------------------------------------------------
+##----group------------------------------------------------------------------
     group_boxplot <- xrf_long %>%
       ggplot()+#just to get things started
       #make boxplot shapes, separate in space using taxon, and color using locality
@@ -833,7 +842,7 @@ if(input_switch=="Cat_Penn"){
            scale = 1, height = 15, width = 14, units = c("in"),
            dpi = 300, limitsize = TRUE)
     
-###----method------------------------------------------------------------------
+##----method------------------------------------------------------------------
     #simplified a bit, focused on group
     Ti_boxplot<-xrf_long %>%  
       ggplot()+#just to get things started
@@ -850,7 +859,7 @@ if(input_switch=="Cat_Penn"){
     ggsave(plotName, plot = Ti_boxplot, device = "png", path = ".",
            scale = 1, height = 10, width = 20, units = c("in"),
            dpi = 300, limitsize = TRUE)
-}
+  }    
 
 #----PCA and correlation matrix----  
 
@@ -862,7 +871,7 @@ if(input_switch=="Cat_Penn"){
 #find zero variance columns
 var_nz <- function(x) !is.na(var(x[x != 0]))
 varying_elements_map<-apply(elements,2,var_nz)
-#update data coulmns and names to only those with varianc
+#update data columns and names to only those with variance
 elements <- elements[,varying_elements_map]
 element_names <- colnames(elements)
 
@@ -881,15 +890,15 @@ elements %>% mshapiro_test
 #this is probably ok on it's own for PCA
 
 #computes the correlations between the columns of the elements df
-ele_cor <- cor(elements) %>%
+ele_cor <- cor(elements) %>% 
   #computes their absolute value
   abs
-
 
 #correlation matrix with significance and correlation coefficients in top 
 #right triangle, histograms on diagonal, and biplots with best fit lines in red
 #this is ugly, but save it in a large format, zoom in and look at the 
 #relationships between variables, are they linear?
+
 chart.Correlation(elements)
 
 #couple of different options for removing some columns
@@ -914,8 +923,9 @@ if(input_switch=="Cat_Penn"){
   normal <- c("Bal","Nb","Rb","Cr","V","K","Si")
 }
 
+
 #normal elements
-ele_norm <- elements%>%select(normal)#select(!low_cor) 
+ele_norm <- elements%>%select(all_of(normal)) #select(!low_cor) 
 ele_norm_names <- colnames(ele_norm)
 #individual tests of normality ... again
 ele_norm %>% ungroup %>%  
@@ -935,7 +945,7 @@ chart.Correlation(ele_notnorm)
 
 #filtering out the few elements with very low correlations
 #this is just going to clarify things in the PCA
-ele_cor <- elements%>%select(!low_cor) 
+ele_cor <- elements%>%select(!all_of(low_cor))
 ele_cor_names <- colnames(ele_cor)
 corr_mat_cor <- ele_cor %>% cor
 
@@ -950,7 +960,6 @@ ele_cor<-data.frame(ele_cor)
 #if doing pre vs post mlpb 
 #run Untitled 2 here
 
-#rownames(ele_cor) <- xrf$SAMPLE
 # https://www.sthda.com/english/wiki/wiki.php?id_contents=7851
 res.pca <- PCA(ele_cor, graph = FALSE)
 eigenvalues <- res.pca$eig
@@ -963,43 +972,45 @@ res.pca$var$contrib
 #pc1 is mostly K, si, Bal, Al
 #pc2 is mostly Fe, Ca, Nb, Cr
 
-#fviz_pca_var(res.pca)
+fviz_pca_var(res.pca)
 #the first two dimensions of the PCA don't single out any elements
 #as driving variation
-#fviz_pca_var(res.pca, axes = c(1,3))
+fviz_pca_var(res.pca, axes = c(1,3))
 #the third two dimension (vertical there) 
 #collapses a bit
 
-#fviz_pca_ind(res.pca, label="none", habillage = xrf$locality)
+fviz_pca_ind(res.pca, label="none", habillage = xrf$locality)
 #no separation of old and new
 
-#fviz_pca_ind(res.pca, axes = c(1,3), label="none", habillage = xrf$locality)
+fviz_pca_ind(res.pca, axes = c(1,3), label="none", habillage = xrf$locality)
 #no separation of old and new
 #but remember, the PCA (1) didn't work very well and (2) is not designed
 #to test for differences between groups
 
 ###try nsprcomp for constrained PCA
-#nn_pca <- nsprcomp(elements, ncomp = 4, scale.=T, center = F,  nneg = T)
-#fviz_pca_var(nn_pca)
-#fviz_pca_ind(nn_pca)
-#summary(nn_pca)
+nn_pca <- nsprcomp(elements, ncomp = 4, scale.=T, center = F,  nneg = T)
+fviz_pca_var(nn_pca)
+fviz_pca_ind(nn_pca)
+summary(nn_pca)
 
-#nn_comp_pca <- nscumcomp(elements, ncomp=4, k=150, scale.= T, nneg=TRUE, gamma=1)
-#fviz_pca_var(nn_comp_pca)
-#fviz_pca_ind(nn_comp_pca)
+nn_comp_pca <- nscumcomp(elements, ncomp=4, k=150, scale.= T, nneg=TRUE, gamma=1)
+fviz_pca_var(nn_comp_pca)
+fviz_pca_ind(nn_comp_pca)
 
 ###try compositions package
-#x <- rcomp(elements)
-#compo_pca<-PCA(x) #removes missing values
+x <- rcomp(elements)
+compo_pca<-PCA(x) #removes missing values
 
 
 # compo_pca <- princomp(x)
-#plot(compo_pca,habillage = xrf$locality)
+plot(compo_pca,habillage = xrf$locality)
 
-#Investigate(compo_pca)
+Investigate(compo_pca)
 
 
-#--------Cat_Penn x=time y=pc1 and 2-----------------------------------------------------
+
+
+#--------x=time y=pc1 and 2-----------------------------------------------------
 
 ggplot(pca_df)+
 #  geom_point(aes(
@@ -1014,3 +1025,12 @@ ggplot(pca_df)+
     color = xrf$LOCATION,
     shape = xrf$taxon)
   )
+
+
+#-------------TO DO-------------------------------------------------------------
+#
+#In QC:
+#   -automate removing elements that fail qc test
+#     -if qc_results$QC_pass == NA then select(-xyz)?
+#
+#
